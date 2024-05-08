@@ -32,14 +32,17 @@ async def join_to_chat(event: ChatMemberUpdated,
                        config: Config,
                        repo: RequestsRepo,
                        bot: Bot):
-    if not event.from_user.id in config.tg_bot.admin_ids:
+    if ((not event.from_user.id in config.tg_bot.admin_ids)
+            and (not event.from_user.id in config.tg_bot.subadmins_ids)):
         await bot.leave_chat(event.chat.id)
 
-    await repo.channels.get_or_create_channel(channel_id=event.chat.id,
-                                              user_id=event.from_user.id,
-                                              name=event.chat.username,
-                                              url=f"t.me/{event.chat.username}",
-                                              description=event.chat.description)
-    await bot.send_message(chat_id=event.from_user.id,
-                           text=f"Бот добавлен в группу с ID {event.chat.id}.")
+    await repo.channels.get_or_create_channel(
+        channel_id=event.chat.id,
+        user_id=event.from_user.id,
+        name=event.chat.username,
+        url=f"t.me/{event.chat.username}",
+        description=event.chat.description)
+    await bot.send_message(
+        chat_id=event.from_user.id,
+        text=f"Бот добавлен в группу с ID {event.chat.id}.")
     return

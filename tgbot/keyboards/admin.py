@@ -5,16 +5,18 @@ from aiogram.types.inline_keyboard_button import InlineKeyboardButton
 from aiogram.types import InlineKeyboardMarkup
 
 
-async def get_main_keyboard() -> InlineKeyboardMarkup:
+async def get_main_keyboard(is_admin: bool) -> InlineKeyboardMarkup:
     kb = InlineKeyboardBuilder()
-    kb.add(*[
-        InlineKeyboardButton(text="💬  Мои каналы",
-                             callback_data="my_channels"),
-        InlineKeyboardButton(text="📞  Написать в техподдержку",
-                             callback_data="tech_support"),
-        InlineKeyboardButton(text="🔠  Узнать ID",
-                             callback_data="getid"),
-    ])
+    buttons = [InlineKeyboardButton(text="💬  Мои каналы",
+                                    callback_data="my_channels")]
+
+    if not is_admin:
+        buttons.append(InlineKeyboardButton(text="📞  Обратная связь",
+                                            callback_data="tech_support"))
+
+    buttons.append(InlineKeyboardButton(text="🔠  Узнать ID",
+                                        callback_data="getid"))
+    kb.add(*buttons)
     kb.adjust(1)
     return kb.as_markup()
 
@@ -27,7 +29,7 @@ async def get_my_channels_keyboard(
         for key, value in channel.items():
             buttons.append(InlineKeyboardButton(
                 text=f"📢  {key}",
-                callback_data=f"channel_{key}_prof_{value}"))
+                callback_data=f"channel_*_{key}_*_prof_*_{value}"))
 
     buttons.append(InlineKeyboardButton(text="🔙  Назад",
                                         callback_data="main_menu"))
@@ -36,9 +38,10 @@ async def get_my_channels_keyboard(
     return kb.as_markup()
 
 
-async def get_selected_channel_keyboard(channel: str,
-                                        channel_id: int,
-                                        bot_is_on: str) -> InlineKeyboardMarkup:
+async def get_selected_channel_keyboard(
+        channel: str,
+        channel_id: int,
+        bot_is_on: str) -> InlineKeyboardMarkup:
     kb = InlineKeyboardBuilder()
 
     if bot_is_on == "on":
@@ -51,7 +54,7 @@ async def get_selected_channel_keyboard(channel: str,
     kb.add(*[
         InlineKeyboardButton(
             text=f"{on_bot_emodji}  Включить бота",
-            callback_data=f"channel_{channel}_{bot_is_on}_{channel_id}"),
+            callback_data=f"channel_*_{channel}_*_{bot_is_on}_*_{channel_id}"),
         InlineKeyboardButton(
             text="📰  Посты для канала",
             callback_data="posts"),
@@ -66,31 +69,47 @@ async def get_selected_channel_keyboard(channel: str,
     return kb.as_markup()
 
 
-async def get_posts_keyboard(channel_id: int, channel: str) -> InlineKeyboardMarkup:
+async def get_posts_keyboard(channel_id: int,
+                             channel: str) -> InlineKeyboardMarkup:
     kb = InlineKeyboardBuilder()
     kb.add(*[
-        InlineKeyboardButton(text="📜  Показать все посты", callback_data="show_posts"),
-        InlineKeyboardButton(text="📝  Добавить посты", callback_data="add_posts"),
-        InlineKeyboardButton(text="🔙  Назад", callback_data=f"channel_{channel}_prof_{channel_id}")
+        InlineKeyboardButton(
+            text="📜  Показать все посты",
+            callback_data="show_posts"),
+        InlineKeyboardButton(
+            text="📝  Добавить посты",
+            callback_data="add_posts"),
+        InlineKeyboardButton(
+            text="🔙  Назад",
+            callback_data=f"channel_*_{channel}_*_prof_*_{channel_id}")
     ])
     kb.adjust(1)
     return kb.as_markup()
 
 
-async def get_all_posts_keyboard(channel_id: int, channel: str) -> InlineKeyboardMarkup:
+async def get_all_posts_keyboard(channel_id: int,
+                                 channel: str) -> InlineKeyboardMarkup:
     kb = InlineKeyboardBuilder()
     kb.add(*[
-        InlineKeyboardButton(text="📝  Добавить посты", callback_data="add_posts"),
-        InlineKeyboardButton(text="🔙  Назад", callback_data=f"channel_{channel}_prof_{channel_id}")
+        InlineKeyboardButton(
+            text="📝  Добавить посты",
+            callback_data="add_posts"),
+        InlineKeyboardButton(
+            text="🔙  Назад",
+            callback_data=f"channel_*_{channel}_*_prof_*_{channel_id}")
     ])
     kb.adjust(1)
     return kb.as_markup()
 
 
-async def get_back_to_channel_keyboard(channel_id: int, channel_name: str) -> InlineKeyboardMarkup:
+async def get_back_to_channel_keyboard(
+        channel_id: int,
+        channel_name: str) -> InlineKeyboardMarkup:
     kb = InlineKeyboardBuilder()
     kb.add(*[
-        InlineKeyboardButton(text="🔙  Назад", callback_data=f"channel_{channel_name}_prof_{channel_id}")
+        InlineKeyboardButton(
+            text="🔙  Назад",
+            callback_data=f"channel_*_{channel_name}_*_prof_*_{channel_id}")
     ])
     kb.adjust(1)
     return kb.as_markup()

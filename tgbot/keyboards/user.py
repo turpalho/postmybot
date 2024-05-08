@@ -11,7 +11,7 @@ async def get_main_keyboard() -> InlineKeyboardMarkup:
         InlineKeyboardButton(text="❔  Инструкция",
                              callback_data="help"),
         InlineKeyboardButton(text="📞  Обратная связь",
-                             callback_data="support"),
+                             callback_data="tech_support"),
         InlineKeyboardButton(text="🔠  Узнать ID",
                              callback_data="getid")
     ])
@@ -22,9 +22,9 @@ async def get_main_keyboard() -> InlineKeyboardMarkup:
 async def get_support_keyboard() -> InlineKeyboardMarkup:
     kb = InlineKeyboardBuilder()
     kb.add(*[
-        InlineKeyboardButton(text="Написать в техподдержку",
+        InlineKeyboardButton(text="📞  Написать в техподдержку",
                              callback_data="tech_support"),
-        InlineKeyboardButton(text="Назад в главное меню",
+        InlineKeyboardButton(text="🔙  Назад",
                              callback_data="main_menu")
     ])
     kb.adjust(1)

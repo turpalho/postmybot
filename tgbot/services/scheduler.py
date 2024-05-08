@@ -20,6 +20,8 @@ async def send_message_interval(
         await repo.channels.update_channel_job(channel_id=chat_id, channel_job=channel_job)
 
     post = channel.posts[channel_job - 1]
-    photo = FSInputFile(post.images[0].url)
-    await bot.send_photo(chat_id=chat_id, photo=photo, caption=post.text)
+    if post.images:
+        await bot.send_photo(chat_id=chat_id, photo=post.images[0].image_id, caption=post.text)
+    else:
+        await bot.send_message(chat_id=chat_id, text=post.text)
     await repo.channels.update_channel_job(channel_id=chat_id, channel_job=channel_job + 1)

@@ -5,7 +5,7 @@ from .channels import chat_router
 from .user import user_router
 
 routers_list = [
-    # admin_router,
+    admin_router,
     subadmin_router,
     chat_router,
     user_router,

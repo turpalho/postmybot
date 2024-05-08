@@ -19,8 +19,7 @@ from tgbot.helpers.utils import create_absolute_path
 from tgbot.services.scheduler import send_message_interval
 from tgbot.config import Config
 from tgbot.misc.states import (AddPostState,
-                               AddPostIntervalState,
-                               TechSupporttState)
+                               AddPostIntervalState,)
 from tgbot.keyboards.admin import (get_back_keyboard,
                                    get_main_keyboard,
                                    get_my_channels_keyboard,
@@ -35,7 +34,6 @@ logger = logging.getLogger(__name__)
 subadmin_router = Router()
 subadmin_router.message.filter(SubAdminFilter())
 subadmin_router.callback_query.filter(SubAdminFilter())
-subadmin_router.include_router(admin_router)
 subadmin_router.message.filter(F.chat.type == "private")
 subadmin_router.callback_query.filter(F.message.chat.type == "private")
 
@@ -49,11 +47,14 @@ async def process_start_command(obj: Message | CallbackQuery,
 
     if isinstance(obj, CallbackQuery):
         await obj.answer()
-        await obj.message.edit_text(text=get_messages_text("MENU"),
-                                    reply_markup=await get_main_keyboard())
+        is_admin = obj.message.chat.id in config.tg_bot.admin_ids
+        await obj.message.edit_text(
+            text=get_messages_text("MENU"),
+            reply_markup=await get_main_keyboard(is_admin))
     else:
+        is_admin = obj.chat.id in config.tg_bot.admin_ids
         await obj.answer(text=get_messages_text("MENU"),
-                         reply_markup=await get_main_keyboard())
+                         reply_markup=await get_main_keyboard(is_admin))
 
 
 @subadmin_router.callback_query(F.data == 'my_channels')
@@ -79,13 +80,14 @@ async def get_my_channels(call: CallbackQuery,
         reply_markup=await get_my_channels_keyboard(my_channels))
 
 
-@subadmin_router.callback_query(F.data.startswith('channel_'))
+@subadmin_router.callback_query(F.data.startswith('channel_*_'))
 async def get_selected_channel(call: CallbackQuery,
                                repo: RequestsRepo,
                                scheduler: AsyncIOScheduler,
                                state: FSMContext,
                                bot: Bot) -> None:
-    call_data = call.data.split("_")
+    await state.clear()
+    call_data = call.data.split("_*_")
     channel_name = call_data[1]
     bot_is_on = call_data[2]
     channel_id = int(call_data[3])
@@ -165,8 +167,11 @@ async def get_my_posts(call: CallbackQuery,
     state_data = await state.get_data()
     channel_id = state_data["channel_id"]
     channel = state_data["channel"]
+    posts = await repo.posts.get_all_posts(user_id=call.message.chat.id)
+    text = f"Количество постов для канала: {len(posts)}"
+    if not posts:
+        text = get_messages_text("NO_POSTS")
 
-    text = get_messages_text("NO_POSTS")
     await call.message.edit_text(text=text,
                                  reply_markup=await get_posts_keyboard(
                                      channel_id=channel_id,
@@ -175,31 +180,38 @@ async def get_my_posts(call: CallbackQuery,
 
 @subadmin_router.callback_query(F.data == 'show_posts')
 async def show_all_posts(call: CallbackQuery,
-                       repo: RequestsRepo,
-                       state: FSMContext) -> None:
+                         repo: RequestsRepo,
+                         state: FSMContext) -> None:
     await call.answer()
     state_data = await state.get_data()
     channel_id = state_data["channel_id"]
     channel = state_data["channel"]
 
-    text = get_messages_text("NO_POSTS")
-    posts = await repo.posts.get_all_posts(user_id=call.message.chat.id)
+    posts = await repo.posts.get_all_posts_with_images(
+                                    user_id=call.message.chat.id)
     if posts:
-        text = f"{get_messages_text('YOUR_POSTS')}\n"
         for post in posts:
-            text += f"ID: {post.id}     Удалить пост: /delpost_{post.id}\n\n"
-            await call.message.answer(
-                text=f"ID: {post.id}\n\
-                Удалить пост: /delpost_{post.id}\n\n{post.text}")
+            if post.images:
+                post_text=f"""ID: {post.id}\nУдалить пост /delpost_{post.id}\
+                    \nТекст: {post.text
+                              if post.text
+                              else 'Нет текста. Только изображение.'}"""
+
+                await call.message.answer_photo(post.images[0].image_id,
+                                                caption=post_text)
+            else:
+                post_text = f"""ID: {post.id}\nУдалить пост /delpost_{post.id}
+                    \nТекст: {post.text}"""
+                await call.message.answer(text=post_text)
 
         await call.message.answer(
-            text=text,
+            text=f"{get_messages_text('YOUR_POSTS')}{len(posts)}",
             reply_markup=await get_all_posts_keyboard(channel_id=channel_id,
                                                       channel=channel))
         return
 
     await call.message.edit_text(
-        text=text,
+        text=get_messages_text("NO_POSTS"),
         reply_markup=await get_all_posts_keyboard(channel_id=channel_id,
                                                   channel=channel))
 
@@ -225,33 +237,33 @@ async def save_post(message: Message,
                     repo: RequestsRepo,
                     state: FSMContext,
                     bot: Bot) -> None:
-    if not message.photo:
-        await message.answer(text=get_messages_text("POST_ERROR"),
-                             reply_markup=await get_back_keyboard())
+    if not message.text and not message.photo:
+        await message.answer(get_messages_text("POST_ERROR"))
         return
+
+    # Getting post info from message
+    images_ids = None
+
+    if message.photo:
+        post_text = message.caption
+        file_id = message.photo[-1].file_id
+        images_ids = [file_id]
+    else:
+        post_text = message.text
+
     state_data = await state.get_data()
     channel_id = state_data["channel_id"]
-    channel = state_data["channel"]
-
-    images_source_path = f"../../source/images/"
-    absolute_path = create_absolute_path(file_path=images_source_path,
-                                         file_name="image",
-                                         file_format="jpg",
-                                         add_time=True)
-    post_text = message.caption
-    file_id = message.photo[-1].file_id
-    file = await bot.get_file(file_id)
-    await bot.download_file(file.file_path, absolute_path)
+    channel_name = state_data["channel"]
 
     await repo.posts.add_post(text=post_text,
                               user_id=message.chat.id,
                               channel_id=channel_id,
-                              image_urls=[absolute_path])
+                              images_ids=images_ids)
     await message.answer(
         text=get_messages_text("POST_ADDED"),
         reply_markup=await get_back_to_channel_keyboard(
             channel_id=channel_id,
-            channel_name=channel))
+            channel_name=channel_name))
 
 
 @subadmin_router.message(F.text.startswith('/delpost_'))
@@ -263,7 +275,7 @@ async def delete_post(message: Message,
     post_id = int(message_data[1])
     await repo.posts.delete_post(post_id=post_id)
     await message.answer(
-        text=f"{get_messages_text('POST_DELETED')} {post_id}")
+        text=f"{get_messages_text('POST_DELETED')}{post_id}")
 
 
 @subadmin_router.callback_query(F.data.startswith('scheduling_'))
@@ -362,43 +374,3 @@ async def save_post(message: Message,
         reply_markup=await get_back_to_channel_keyboard(
             channel_id=channel_id,
             channel_name=channel))
-
-
-@subadmin_router.callback_query(F.data == 'tech_support')
-async def get_tech_support(call: CallbackQuery,
-                           state: FSMContext) -> None:
-    await call.answer()
-    await state.clear()
-    await state.set_state(TechSupporttState.waiting_send_techsup)
-    await call.message.edit_text(text=get_messages_text("TECH_SUPPORT"),
-                                 reply_markup=await get_back_keyboard())
-
-
-@subadmin_router.message(TechSupporttState.waiting_send_techsup)
-async def sent_support_request(message: Message,
-                               state: FSMContext,
-                               config: Config,
-                               bot: Bot) -> None:
-    await state.clear()
-
-    for admin_id in config.tg_bot.admin_ids:
-        try:
-            await bot.send_message(chat_id=admin_id,
-                                   text=f'{message.chat.id}_{message.text}')
-        except:
-            logging.info(f'ЧАТ НЕ НАЙДЕН {admin_id}')
-
-    await message.answer(text=get_messages_text('SUPPORT_REQUES_SENT'),
-                         reply_markup=await get_back_keyboard())
-
-
-@subadmin_router.callback_query(F.data == 'getid')
-async def get_my_id(call: CallbackQuery,
-                          state: FSMContext) -> None:
-    await call.answer()
-    await state.clear()
-
-    await call.message.answer(text=f"<code>{call.message.chat.id}</code>")
-    await call.message.answer(
-        text=get_messages_text("BACK_MENU"),
-        reply_markup=await get_back_keyboard())

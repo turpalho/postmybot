@@ -35,9 +35,11 @@ async def add_admin(message: Message,
         if not config.tg_bot.subadmins_ids:
             config.tg_bot.subadmins_ids = []
 
-        config.tg_bot.subadmins_ids.append(message.from_user.id)
+        if not message.from_user.id in config.tg_bot.subadmins_ids:
+            config.tg_bot.subadmins_ids.append(message.from_user.id)
+            await repo.configs.update_subadmin_ids(config.tg_bot.subadmins_ids)
+
         await repo.configs.update_admin_ids(config.tg_bot.admin_ids)
-        await repo.configs.update_subadmin_ids(config.tg_bot.subadmins_ids)
         await message.answer(text=get_messages_text("ADD_ADMIN"))
     else:
         await message.answer(text=get_messages_text("EXISTED_ADMIN"))
@@ -120,8 +122,10 @@ async def sent_support_request(message: Message,
 
     for admin_id in config.tg_bot.admin_ids:
         try:
-            await bot.send_message(chat_id=admin_id,
-                                   text=f'{message.chat.id}_{message.text}')
+            await bot.send_message(
+                chat_id=admin_id,
+                text=f'New issue: #id{message.chat.id}\
+                       \n\nMessage text:\n  {message.text}')
         except:
             logging.info(f'ЧАТ НЕ НАЙДЕН {admin_id}')
 
