@@ -14,12 +14,11 @@ class Image(Base, TimestampMixin):
     __tablename__ = "images"
 
     id: Mapped[int] = mapped_column(BigInteger,
-                                    primary_key=True,
-                                    index=True)
-    url: Mapped[Optional[str]]
-    post_id: Mapped[int] = mapped_column(BigInteger,
-                                         ForeignKey("posts.id",
-                                                    ondelete='CASCADE'))
+                                    primary_key=True)
+    image_id: Mapped[str] = mapped_column(index=True)
+    post_id: Mapped[int] = mapped_column(
+        BigInteger,
+        ForeignKey("posts.id", ondelete='CASCADE'))
 
     post: Mapped["Post"] = relationship(back_populates="images")
 
